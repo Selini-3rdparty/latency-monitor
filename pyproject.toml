@@ -38,6 +38,7 @@ Repository = "https://github.com/Selini-3rdparty/latency-monitor.git"
 [project.scripts]
 latency-monitor="latency_monitor.main:start"
 
+
 [project.optional-dependencies]
 datadog = [
     "datadog-api-client>=2.47.0",
