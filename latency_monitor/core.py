@@ -204,6 +204,9 @@ def owd_udp_client(metrics_q, target, **opts):
             socket.AF_INET6 if ":" in target["host"] else socket.AF_INET,
             socket.SOCK_DGRAM,
         ) as skt:
+            src_addr = target.get("source_address", opts.get("source_address"))
+            if src_addr:
+                skt.bind((src_addr, 0))
             seq = 0
             while True:
                 ts = time.time_ns()
@@ -461,6 +464,9 @@ def owd_tcp_client(metrics_q, target, **opts):
             socket.AF_INET6 if ":" in target["host"] else socket.AF_INET,
             socket.SOCK_STREAM,
         ) as skt:
+            src_addr = target.get("source_address", opts.get("source_address"))
+            if src_addr:
+                skt.bind((src_addr, 0))
             try:
                 skt.connect((target["host"], port))
             except Exception as err:
@@ -604,7 +610,9 @@ def start_tcp_latency_pollers(metrics_q, **opts):
         time.sleep(0.01)
 
 
-def _latency_point(host, port=defaults.TCP_PORT, timeout=defaults.TIMEOUT):
+def _latency_point(
+    host, port=defaults.TCP_PORT, timeout=defaults.TIMEOUT, source_address=None
+):
     """
     :rtype: Returns float if possible
     Calculate a latency point using sockets. If something bad happens the point returned is None.
@@ -617,7 +625,14 @@ def _latency_point(host, port=defaults.TCP_PORT, timeout=defaults.TIMEOUT):
 
     # Try to Connect
     try:
-        s = socket.create_connection((host, port), timeout=timeout)
+        s = socket.socket(
+            socket.AF_INET6 if ":" in host else socket.AF_INET,
+            socket.SOCK_STREAM,
+        )
+        s.settimeout(timeout)
+        if source_address:
+            s.bind((source_address, 0))
+        s.connect((host, port))
         s.shutdown(socket.SHUT_RD)
 
     # If something bad happens, the latency_point is None
@@ -645,10 +660,12 @@ def tcp_latency_poll(metrics_q, target, **opts):
     tags = _build_tags(opts["name"], target)
     while True:
         probe_time = time.time_ns()
+        src_addr = target.get("source_address", opts.get("source_address"))
         res = _latency_point(
             host=target["host"],
             port=port,
             timeout=tout,
+            source_address=src_addr,
         )
         if not res:
             log.info(
