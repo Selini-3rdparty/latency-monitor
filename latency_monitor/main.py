@@ -168,6 +168,13 @@ def parse_args(opts):
         f"Default: {opts['max_lost']}",
     )
 
+    network_args.add_argument(
+        "--source-address",
+        type=str,
+        default=opts["source_address"],
+        help="Source IP address to bind outbound probe sockets to",
+    )
+
     runtime_args = parser.add_argument_group("Runtime options")
     runtime_args.add_argument(
         "-T",
@@ -246,6 +253,7 @@ def start(cli=True, args=None, metrics_q=None):
         "log_level": defaults.LOG_LEVEL,
         "log_file": None,
         "tcp_latency": defaults.TCP_LATENCY,
+        "source_address": defaults.SOURCE_ADDRESS,
     }
     signal.signal(signal.SIGTERM, _sigkill)
     signal.signal(signal.SIGINT, _sigkill)

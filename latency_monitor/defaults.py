@@ -23,6 +23,7 @@ MAX_CONN = 40
 MAX_SIZE = 1470
 MAX_LOST = 10
 LOG_LEVEL = "INFO"
+SOURCE_ADDRESS = None
 LOG_FORMAT = "[%(asctime)s] [%(levelname)s] %(message)s"
 
 MSG_FMT = "{seq}|{source}|{timestamp}|{tags}|"
