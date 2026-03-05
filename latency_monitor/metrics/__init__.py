@@ -9,6 +9,7 @@ from latency_monitor.metrics.clickhouse import ClickHouse
 from latency_monitor.metrics.datadog import Datadog
 from latency_monitor.metrics.log import Log
 from latency_monitor.metrics.pushgateway import Pushgateway
+from latency_monitor.metrics.questdb import QuestDB
 from latency_monitor.metrics.zeromq import ZeroMQ
 
 __metrics__ = {
@@ -18,4 +19,5 @@ __metrics__ = {
     "datadog": Datadog,
     "pushgateway": Pushgateway,
     "clickhouse": ClickHouse,
+    "questdb": QuestDB,
 }
