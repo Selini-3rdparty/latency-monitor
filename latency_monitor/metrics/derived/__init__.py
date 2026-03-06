@@ -16,8 +16,6 @@ from latency_monitor.metrics.derived.packet_loss import PacketLoss
 
 log = logging.getLogger(__name__)
 
-INTERNAL_METRICS = {"udp.wan.probe_sent", "tcp.wan.probe_sent"}
-
 __derived__ = {
     "jitter": Jitter,
     "packet_loss": PacketLoss,
@@ -39,9 +37,7 @@ class DerivedMetricsWorker:
         while True:
             metric = input_q.get()
             log.debug("[DerivedMetrics] Received metric: %s", metric["metric"])
-
-            if metric["metric"] not in INTERNAL_METRICS:
-                output_q.put(metric)
+            output_q.put(metric)
 
             for proc in self.processors:
                 if metric["metric"] in proc.subscribes_to:

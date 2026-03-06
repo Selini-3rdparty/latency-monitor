@@ -294,7 +294,9 @@ def start(cli=True, args=None, metrics_q=None):
         if proc_type not in __derived__:
             log.critical("Unknown derived processor: %s", proc_type)
             sys.exit(1)
-        proc = __derived__[proc_type](send_interval=send_interval, **proc_cfg)
+        proc = __derived__[proc_type](
+            send_interval=send_interval, interval=opts["interval"], **proc_cfg
+        )
         derived_processors.append(proc)
         log.info(
             "Registered derived processor: %s (window=%ds)", proc_type, proc.window

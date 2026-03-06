@@ -228,14 +228,6 @@ def owd_udp_client(metrics_q, target, **opts):
                     msg,
                     (target["host"], port),
                 )
-                metrics_q.put(
-                    {
-                        "metric": "udp.wan.probe_sent",
-                        "points": [(time.time_ns(), 1)],
-                        "tags": tags,
-                        "meta": {"seq": seq},
-                    }
-                )
                 if rtt:
                     incoming = select.select([skt], [], [], tout)
                     try:
@@ -519,14 +511,6 @@ def owd_tcp_client(metrics_q, target, **opts):
                     target.get("tags", []),
                 )
                 skt.sendall(msg)
-                metrics_q.put(
-                    {
-                        "metric": "tcp.wan.probe_sent",
-                        "points": [(time.time_ns(), 1)],
-                        "tags": tags,
-                        "meta": {"seq": seq},
-                    }
-                )
                 if rtt:
                     data = _read_tcp(skt, tout, max_size)
                     if not data:
