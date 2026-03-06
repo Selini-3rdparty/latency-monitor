@@ -23,7 +23,7 @@ from latency_monitor.core import (
     start_udp_server,
 )
 from latency_monitor.metrics import __metrics__
-from latency_monitor.metrics.derived import __derived__, DerivedMetricsWorker
+from latency_monitor.metrics.derived import DerivedMetricsWorker, __derived__
 
 log = logging.getLogger(__name__)
 
@@ -296,7 +296,9 @@ def start(cli=True, args=None, metrics_q=None):
             sys.exit(1)
         proc = __derived__[proc_type](send_interval=send_interval, **proc_cfg)
         derived_processors.append(proc)
-        log.info("Registered derived processor: %s (window=%ds)", proc_type, proc.window)
+        log.info(
+            "Registered derived processor: %s (window=%ds)", proc_type, proc.window
+        )
     # When derived processors are configured, use a two-queue pipeline
     if derived_processors:
         backend_q = multiprocessing.Queue()
@@ -311,7 +313,9 @@ def start(cli=True, args=None, metrics_q=None):
             "No metrics backend configured, will skip assuming you're using the"
             "API. Otherwise, make sure you have a metrics backend configured."
         )
-    metrics_w = derived_w = poller = tcp_server = udp_server = owd_udp_ps = owd_tcp_ps = None
+    metrics_w = derived_w = poller = tcp_server = udp_server = owd_udp_ps = (
+        owd_tcp_ps
+    ) = None
     while True:
         if derived_worker and (not derived_w or not derived_w.is_alive()):
             log.info("Starting the derived metrics worker")
