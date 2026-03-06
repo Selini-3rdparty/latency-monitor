@@ -106,10 +106,12 @@ def serve_owd_udp(metrics_q, srv, ts, data, addr, seq_dict, **opts):
     expected_seq = _next_seq(prev_seq) if prev_seq > 0 else -1
     if owd_ns < 0 or (expected_seq > 0 and seq != expected_seq):
         owd_ns = 0
+    status = "ok" if owd_ns > 0 else "seq_mismatch"
     metric = {
         "metric": "udp.wan.owd",
         "points": [(time.time_ns(), owd_ns)],
         "tags": tags,
+        "meta": {"seq": seq, "status": status},
     }
     log.debug("Adding UDP OWD metric to the metrics queue: %s", metric)
     metrics_q.put(metric)
@@ -226,6 +228,14 @@ def owd_udp_client(metrics_q, target, **opts):
                     msg,
                     (target["host"], port),
                 )
+                metrics_q.put(
+                    {
+                        "metric": "udp.wan.probe_sent",
+                        "points": [(time.time_ns(), 1)],
+                        "tags": tags,
+                        "meta": {"seq": seq},
+                    }
+                )
                 if rtt:
                     incoming = select.select([skt], [], [], tout)
                     try:
@@ -256,6 +266,12 @@ def owd_udp_client(metrics_q, target, **opts):
                         )
                         owd_ns = 0
                         srv_seq = -1
+                    if not data:
+                        rtt_status = "timeout"
+                    elif seq != srv_seq:
+                        rtt_status = "seq_mismatch"
+                    else:
+                        rtt_status = "ok"
                     if seq != srv_seq:
                         log.info(
                             "[UDP OWD client] Ignoring timestamp as SEQ doesn't "
@@ -271,6 +287,7 @@ def owd_udp_client(metrics_q, target, **opts):
                         "metric": "udp.wan.rtt",
                         "points": [(time.time_ns(), rtt_ns)],
                         "tags": tags,
+                        "meta": {"seq": seq, "status": rtt_status},
                     }
                     log.debug(
                         "[UDP OWD client] Adding RTT metric to the queue: %s", metric
@@ -378,10 +395,12 @@ def serve_owd_tcp(metrics_q, conn, addr, **opts):
         tags = [f"source:{src}", f"target:{opts['name']}"] + (
             ast.literal_eval(rtags) if rtags else []
         )
+        status = "ok" if owd_ns > 0 else "seq_mismatch"
         metric = {
             "metric": "tcp.wan.owd",
             "points": [(time.time_ns(), owd_ns)],
             "tags": tags,
+            "meta": {"seq": seq, "status": status},
         }
         log.debug("[TCP OWD server] Adding metric to the queue %s", metric)
         metrics_q.put(metric)
@@ -500,6 +519,14 @@ def owd_tcp_client(metrics_q, target, **opts):
                     target.get("tags", []),
                 )
                 skt.sendall(msg)
+                metrics_q.put(
+                    {
+                        "metric": "tcp.wan.probe_sent",
+                        "points": [(time.time_ns(), 1)],
+                        "tags": tags,
+                        "meta": {"seq": seq},
+                    }
+                )
                 if rtt:
                     data = _read_tcp(skt, tout, max_size)
                     if not data:
@@ -544,10 +571,17 @@ def owd_tcp_client(metrics_q, target, **opts):
                             lost += 1
                         else:
                             lost = 0
+                    if not data:
+                        rtt_status = "timeout"
+                    elif srv_seq != seq:
+                        rtt_status = "seq_mismatch"
+                    else:
+                        rtt_status = "ok"
                     rtt_metric = {
                         "metric": "tcp.wan.rtt",
                         "points": [(time.time_ns(), rtt_ns)],
                         "tags": tags,
+                        "meta": {"seq": seq, "status": rtt_status},
                     }
                     log.debug(
                         "[TCP OWD client] Adding RTT metric to the metrics queue: %s",
@@ -678,6 +712,7 @@ def tcp_latency_poll(metrics_q, target, **opts):
             "metric": "tcp.wan.latency",
             "points": [(probe_time, res)],
             "tags": tags,
+            "meta": {"status": "ok" if res > 0 else "timeout"},
         }
         log.debug("Adding TCP latency metric to the publisher queue: %s", metric)
         metrics_q.put(metric)
