@@ -16,10 +16,12 @@ in ILP. E.g., 250 = 2.50%. Grafana divides by 100 for display.
 
 import time
 
-from latency_monitor.metrics.derived import DerivedProcessor
+from latency_monitor.metrics.derived.base import DerivedProcessor
 
 
 class PacketLoss(DerivedProcessor):
+    """Packet loss processor with RTT and OWD counting modes."""
+
     name = "packet_loss"
     subscribes_to = [
         "udp.wan.owd",
@@ -35,38 +37,35 @@ class PacketLoss(DerivedProcessor):
         self.mode = proc_opts.get("mode", "both")
         self.flows = {}
 
-    def process(self, metric):
+    def _get_flow(self, metric_name, tags):
+        """Get or create a flow state for the given metric and tags."""
+        flow_key = (metric_name, frozenset(tags))
+        return self.flows.setdefault(flow_key, {"total": 0, "ok": 0, "failed": 0})
+
+    def process(self, metric):  # pylint: disable=too-many-return-statements
+        """Update per-flow counters from incoming metric."""
         meta = metric.get("meta", {})
         metric_name = metric["metric"]
 
         if metric_name.endswith(".probe_sent"):
-            if self.mode not in ("owd", "both"):
-                return []
-            base = metric_name.replace(".probe_sent", ".owd")
-            flow_key = (base, frozenset(metric["tags"]))
-            flow = self.flows.setdefault(flow_key, {"total": 0, "ok": 0, "failed": 0})
-            flow["total"] += 1
+            if self.mode in ("owd", "both"):
+                base = metric_name.replace(".probe_sent", ".owd")
+                self._get_flow(base, metric["tags"])["total"] += 1
             return []
 
         if ".rtt" in metric_name:
-            if self.mode not in ("rtt", "both"):
-                return []
-            flow_key = (metric_name, frozenset(metric["tags"]))
-            flow = self.flows.setdefault(flow_key, {"total": 0, "ok": 0, "failed": 0})
-            flow["total"] += 1
-            status = meta.get("status", "ok")
-            if status == "ok":
-                flow["ok"] += 1
-            else:
-                flow["failed"] += 1
+            if self.mode in ("rtt", "both"):
+                flow = self._get_flow(metric_name, metric["tags"])
+                flow["total"] += 1
+                if meta.get("status", "ok") == "ok":
+                    flow["ok"] += 1
+                else:
+                    flow["failed"] += 1
             return []
 
         if ".owd" in metric_name:
-            if self.mode not in ("owd", "both"):
-                return []
-            flow_key = (metric_name, frozenset(metric["tags"]))
-            flow = self.flows.setdefault(flow_key, {"total": 0, "ok": 0, "failed": 0})
-            flow["ok"] += 1
+            if self.mode in ("owd", "both"):
+                self._get_flow(metric_name, metric["tags"])["ok"] += 1
             return []
 
         return []

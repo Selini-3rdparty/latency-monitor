@@ -10,10 +10,12 @@ Computes interarrival jitter using the RFC 3550 algorithm:
 
 import time
 
-from latency_monitor.metrics.derived import DerivedProcessor
+from latency_monitor.metrics.derived.base import DerivedProcessor
 
 
 class Jitter(DerivedProcessor):
+    """RFC 3550 interarrival jitter processor."""
+
     name = "jitter"
     subscribes_to = [
         "udp.wan.owd",
