@@ -9,7 +9,11 @@ using ILP over HTTP. Supports basic auth and TLS.
 
 import logging
 
-from questdb.ingress import Sender, IngressError, TimestampNanos
+from questdb.ingress import (  # pylint: disable=E0611
+    IngressError,
+    Sender,
+    TimestampNanos,
+)
 
 from latency_monitor.metrics.accumulator import Accumulator
 
