@@ -35,7 +35,6 @@ class QuestDB(Accumulator):
         self.password = metrics_cfg.get("password")
         self.tls = metrics_cfg.get("tls", False)
         self.sender = None
-        self._connect()
 
     def _build_conf(self):
         """Build a questdb connection string from config."""
@@ -67,6 +66,8 @@ class QuestDB(Accumulator):
 
     def _push_metrics(self, metrics):
         """Convert metrics to rows and flush via the official client."""
+        if not self.sender:
+            self._connect()
         for metric in metrics:
             measurement = metric["metric"].replace(".", "_")
             tag_dict = dict(t.split(":", 1) for t in metric["tags"])
