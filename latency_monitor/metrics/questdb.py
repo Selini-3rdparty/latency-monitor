@@ -3,11 +3,13 @@
 QuestDB metrics backend
 =======================
 
-Ships metrics to QuestDB via InfluxDB Line Protocol (ILP) over TCP.
+Ships metrics to QuestDB via the official questdb Python client
+using ILP over HTTP. Supports basic auth and TLS.
 """
 
 import logging
-import socket
+
+from questdb.ingress import Sender, IngressError, TimestampNanos
 
 from latency_monitor.metrics.accumulator import Accumulator
 
@@ -17,41 +19,62 @@ log = logging.getLogger(__name__)
 class QuestDB(Accumulator):
     """
     Accumulate metrics and ship them to QuestDB at specific intervals
-    using the InfluxDB Line Protocol (ILP) over a raw TCP socket.
+    using the official questdb client over HTTP.
     """
 
     def __init__(self, **opts):
         super().__init__(**opts)
-        self.host = self.opts["metrics"]["host"]
-        self.port = self.opts["metrics"].get("port", 9009)
-        self.sock = None
+        metrics_cfg = self.opts["metrics"]
+        self.host = metrics_cfg["host"]
+        self.port = metrics_cfg.get("port", 9000)
+        self.username = metrics_cfg.get("username")
+        self.password = metrics_cfg.get("password")
+        self.tls = metrics_cfg.get("tls", False)
+        self.sender = None
         self._connect()
 
+    def _build_conf(self):
+        """Build a questdb connection string from config."""
+        protocol = "https" if self.tls else "http"
+        conf = f"{protocol}::addr={self.host}:{self.port};auto_flush=off;"
+        if self.username:
+            conf += f"username={self.username};"
+        if self.password:
+            conf += f"password={self.password};"
+        return conf
+
     def _connect(self):
-        """Open TCP socket to QuestDB ILP endpoint."""
-        if self.sock:
+        """Create and establish a Sender connection."""
+        if self.sender:
             try:
-                self.sock.close()
-            except OSError:
+                self.sender.close()
+            except Exception:  # pylint: disable=W0718
                 pass
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.connect((self.host, self.port))
-        log.info("Connected to QuestDB ILP at %s:%d", self.host, self.port)
+        conf = self._build_conf()
+        self.sender = Sender.from_conf(conf)
+        self.sender.establish()
+        log.info(
+            "Connected to QuestDB at %s:%d (tls=%s, auth=%s)",
+            self.host,
+            self.port,
+            self.tls,
+            bool(self.username),
+        )
 
     def _push_metrics(self, metrics):
-        """Convert metrics to ILP lines and send over TCP."""
-        lines = []
+        """Convert metrics to rows and flush via the official client."""
         for metric in metrics:
             measurement = metric["metric"].replace(".", "_")
-            tags = ",".join(
-                f"{k}={v}" for k, v in (t.split(":", 1) for t in metric["tags"])
-            )
+            tag_dict = dict(t.split(":", 1) for t in metric["tags"])
             for ts, value in metric["points"]:
-                lines.append(f"{measurement},{tags} value={value}i {ts}\n")
-        payload = "".join(lines)
+                self.sender.row(
+                    measurement,
+                    symbols=tag_dict,
+                    columns={"value": value},
+                    at=TimestampNanos(ts),
+                )
         try:
-            self.sock.sendall(payload.encode("utf-8"))
-        except (BrokenPipeError, ConnectionResetError, OSError):
-            log.warning("QuestDB connection lost, reconnecting")
+            self.sender.flush()
+        except IngressError:
+            log.warning("QuestDB flush failed, reconnecting", exc_info=True)
             self._connect()
-            self.sock.sendall(payload.encode("utf-8"))
